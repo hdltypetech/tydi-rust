@@ -3,7 +3,7 @@ use std::fs;
 use std::error::Error;
 use chrono::{DateTime, Utc};
 use rust_tydi_packages::{binary::TydiBinary, TydiPacket, drilling::*, TydiStream, TydiBinaryStream};
-use rust_tydi_packages::binary::FromTydiBinary;
+use rust_tydi_packages::binary::{FromTydiBinary, ToTydiBinary};
 // Define the data structures based on the JSON schema.
 // We use `serde::Deserialize` to automatically derive the deserialization logic.
 
@@ -141,14 +141,14 @@ struct PhysicalStreamsBinary {
 impl PhysicalStreamsBinary {
     pub fn new(posts: PhysicalStreamsTyped) -> PhysicalStreamsBinary {
         Self {
-            posts: posts.posts.finish(256),
-            post_titles: posts.post_titles.finish(8),
-            post_contents: posts.post_contents.finish(8),
-            post_author_username: posts.post_author_username.finish(8),
-            post_tags: posts.post_tags.finish(8),
-            post_comments: posts.post_comments.finish(160),
-            post_comment_author_username: posts.post_comment_author_username.finish(8),
-            post_comment_content: posts.post_comment_content.finish(8),
+            posts: posts.posts.finish(),
+            post_titles: posts.post_titles.finish(),
+            post_contents: posts.post_contents.finish(),
+            post_author_username: posts.post_author_username.finish(),
+            post_tags: posts.post_tags.finish(),
+            post_comments: posts.post_comments.finish(),
+            post_comment_author_username: posts.post_comment_author_username.finish(),
+            post_comment_content: posts.post_comment_content.finish(),
         }
     }
 
@@ -226,14 +226,16 @@ pub struct PostVecs {
     pub comments: Vec<Comment>,
 }
 
-impl From<Post> for TydiBinary {
-    fn from(value: Post) -> Self {
-        let post_id: TydiBinary = value.post_id.into();
-        let author: TydiBinary = value.author.into();
-        let created_at: TydiBinary = value.created_at.into();
-        let updated_at: TydiBinary = value.updated_at.into();
-        let likes: TydiBinary = value.likes.into();
-        let shares: TydiBinary = value.shares.into();
+impl ToTydiBinary for Post {
+    const SIZE: usize = 256;
+
+    fn to_tydi_binary(self) -> TydiBinary {
+        let post_id: TydiBinary = self.post_id.into();
+        let author: TydiBinary = self.author.into();
+        let created_at: TydiBinary = self.created_at.into();
+        let updated_at: TydiBinary = self.updated_at.into();
+        let likes: TydiBinary = self.likes.into();
+        let shares: TydiBinary = self.shares.into();
         post_id.concatenate(&author).concatenate(&created_at).concatenate(&updated_at).concatenate(&likes).concatenate(&shares)
     }
 }
@@ -304,12 +306,14 @@ impl FromTydiBinary for Comment {
     }
 }
 
-impl From<Comment> for TydiBinary {
-    fn from(value: Comment) -> Self {
-        let comment_id: TydiBinary = value.comment_id.into();
-        let author: TydiBinary = value.author.into();
-        let created_at: TydiBinary = value.created_at.into();
-        let likes: TydiBinary = value.likes.into();
+impl ToTydiBinary for Comment {
+    const SIZE: usize = 160;
+
+    fn to_tydi_binary(self) -> TydiBinary {
+        let comment_id: TydiBinary = self.comment_id.into();
+        let author: TydiBinary = self.author.into();
+        let created_at: TydiBinary = self.created_at.into();
+        let likes: TydiBinary = self.likes.into();
         comment_id.concatenate(&author).concatenate(&created_at).concatenate(&likes)
     }
 }

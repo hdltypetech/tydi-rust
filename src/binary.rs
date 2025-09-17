@@ -210,11 +210,13 @@ impl Debug for TydiBinary {
 macro_rules! impl_from_primitive {
     ($($t:ty),*) => {
         $(
-            impl From<$t> for TydiBinary {
-                fn from(value: $t) -> Self {
+            impl ToTydiBinary for $t {
+                const SIZE: usize = mem::size_of::<$t>() * 8;
+
+                fn to_tydi_binary(self) -> TydiBinary {
                     TydiBinary {
-                        data: value.to_ne_bytes().to_vec(),
-                        len: mem::size_of::<$t>() * 8,
+                        data: self.to_ne_bytes().to_vec(),
+                        len: Self::SIZE,
                     }
                 }
             }
@@ -238,6 +240,20 @@ macro_rules! impl_from_primitive {
 }
 
 impl_from_primitive!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize, f32, f64);
+
+pub trait ToTydiBinary where Self: Sized {
+    /// Number of bits this type always occupies when converted to binary.
+    const SIZE: usize;
+
+    /// Converts/packs the current datatype into a Tydi binary blob.
+    fn to_tydi_binary(self) -> TydiBinary;
+}
+
+impl<T> From<T> for TydiBinary where T : ToTydiBinary {
+    fn from(value: T) -> Self {
+        value.to_tydi_binary()
+    }
+}
 
 pub trait FromTydiBinary where Self: Sized {
     fn from_tydi_binary(value: TydiBinary) -> (Self, TydiBinary);

@@ -1,4 +1,4 @@
-use crate::binary::TydiBinary;
+use crate::binary::{ToTydiBinary, TydiBinary};
 use crate::{binary, TydiBinaryStream, TydiPacket, TydiStream};
 
 pub trait TydiConvert<T> {
@@ -198,16 +198,16 @@ impl TydiStream<u8> {
 }
 
 pub trait TydiPacktestToBinary {
-    fn finish(&self, size: usize) -> TydiBinaryStream;
-    fn finish_vec(&self, size: usize) -> Vec<TydiBinary>;
+    fn finish(&self) -> TydiBinaryStream;
+    fn finish_vec(&self) -> Vec<TydiBinary>;
 }
 
-impl<T: Into<TydiBinary> + Clone> TydiPacktestToBinary for TydiStream<T> {
-    fn finish(&self, size: usize) -> TydiBinaryStream {
-        TydiBinaryStream(self.finish_vec(size))
+impl<T: ToTydiBinary + Clone> TydiPacktestToBinary for TydiStream<T> {
+    fn finish(&self) -> TydiBinaryStream {
+        TydiBinaryStream(self.finish_vec())
     }
 
-    fn finish_vec(&self, size: usize) -> Vec<TydiBinary> {
-        self.0.iter().map(|el| el.clone().to_binary(size)).collect()
+    fn finish_vec(&self) -> Vec<TydiBinary> {
+        self.0.iter().map(|el| el.clone().to_binary()).collect()
     }
 }
