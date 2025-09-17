@@ -15,6 +15,12 @@ impl TydiBinary {
         Self { data: Vec::new(), len: 0 }
     }
 
+    /// Creates a new TydiBinary struct of bit length filled with zeros.
+    pub fn zeros(len: usize) -> Self {
+        let bytes = len.div_ceil(8);
+        Self { data: vec![0; bytes], len }
+    }
+
     /// Creates a new TydiBinary struct from a vector of bytes and a bit length.
     pub fn new(data: Vec<u8>, len: usize) -> Self {
         // Simple sanity check to ensure the length is not greater than
@@ -249,6 +255,39 @@ pub trait ToTydiBinary where Self: Sized {
     fn to_tydi_binary(self) -> TydiBinary;
 }
 
+impl<T> ToTydiBinary for Option<T> where T: ToTydiBinary {
+    const SIZE: usize = T::SIZE + 1;
+    fn to_tydi_binary(self) -> TydiBinary {
+        let tag: TydiBinary = match &self {
+            None => { false.into() }
+            Some(_) => { true.into() }
+        };
+        let data_val = match self {
+            None => { TydiBinary::zeros(T::SIZE) }
+            Some(val) => { val.to_tydi_binary() }
+        };
+        let len = data_val.len;
+        let result= tag.concatenate(&data_val);
+        result
+    }
+}
+
+/// Return empty blob for strings, so that they can be processed like other items.
+impl ToTydiBinary for String {
+    const SIZE: usize = 0;
+    fn to_tydi_binary(self) -> TydiBinary {
+        TydiBinary::empty()
+    }
+}
+
+/// Return empty blob for vectors, so that they can be processed like other items.
+impl<T> ToTydiBinary for Vec<T> {
+    const SIZE: usize = 0;
+    fn to_tydi_binary(self) -> TydiBinary {
+        TydiBinary::empty()
+    }
+}
+
 impl<T> From<T> for TydiBinary where T : ToTydiBinary {
     fn from(value: T) -> Self {
         value.to_tydi_binary()
@@ -280,42 +319,56 @@ impl FromTydiBinary for bool {
     }
 }
 
-impl From<Vec<bool>> for TydiBinary {
-    fn from(value: Vec<bool>) -> Self {
-        let bit_count = value.len();
-        let byte_count = bit_count.div_ceil(8);
-
-        let mut packed_bytes = Vec::with_capacity(byte_count);
-
-        // Iterate over the boolean vector in chunks of 8.
-        for chunk in value.chunks(8) {
-            let mut byte: u8 = 0;
-            let mut bit_position: u8 = 0;
-
-            // Iterate through each boolean in the current chunk.
-            for &value in chunk {
-                if value {
-                    // If the boolean is `true`, set the corresponding bit in the byte.
-                    // We use a bitwise OR (`|=`) and left-shift a `1` to the
-                    // correct position. `1 << bit_position` creates a byte with
-                    // only a single bit set at the correct index.
-                    byte |= 1 << bit_position;
-                }
-                // Move to the next bit position.
-                bit_position += 1;
-            }
-
-            // Push the completed byte to the result vector.
-            packed_bytes.push(byte);
+impl<T> FromTydiBinary for Option<T> where T: FromTydiBinary {
+    fn from_tydi_binary(value: TydiBinary) -> (Self, TydiBinary) {
+        let (tag, rest) = bool::from_tydi_binary(value);
+        if tag {
+            let (data, _) = T::from_tydi_binary(rest);
+            return (Some(data), TydiBinary::empty());
         }
-        TydiBinary { data: packed_bytes, len: bit_count }
+        (None, TydiBinary::empty())
     }
 }
 
-impl<T> FromTydiBinary for Vec<T> where T: FromTydiBinary {
+fn bool_vec_to_tydi_binary(value: Vec<bool>) -> TydiBinary {
+    let bit_count = value.len();
+    let byte_count = bit_count.div_ceil(8);
+
+    let mut packed_bytes = Vec::with_capacity(byte_count);
+
+    // Iterate over the boolean vector in chunks of 8.
+    for chunk in value.chunks(8) {
+        let mut byte: u8 = 0;
+        let mut bit_position: u8 = 0;
+
+        // Iterate through each boolean in the current chunk.
+        for &value in chunk {
+            if value {
+                // If the boolean is `true`, set the corresponding bit in the byte.
+                // We use a bitwise OR (`|=`) and left-shift a `1` to the
+                // correct position. `1 << bit_position` creates a byte with
+                // only a single bit set at the correct index.
+                byte |= 1 << bit_position;
+            }
+            // Move to the next bit position.
+            bit_position += 1;
+        }
+
+        // Push the completed byte to the result vector.
+        packed_bytes.push(byte);
+    }
+    TydiBinary { data: packed_bytes, len: bit_count }
+}
+
+impl<T> FromTydiBinary for Vec<T> {
     fn from_tydi_binary(value: TydiBinary) -> (Self, TydiBinary) {
-        let (val, bin2) = T::from_tydi_binary(value);
-        todo!();
+        (Vec::new(), value)
+    }
+}
+
+impl FromTydiBinary for String {
+    fn from_tydi_binary(value: TydiBinary) -> (Self, TydiBinary) {
+        (String::new(), value)
     }
 }
 

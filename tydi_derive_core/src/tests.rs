@@ -35,7 +35,7 @@ fn comment() {
             comment_id: u32,
             author: Author,
             content: String,
-            created_at: String,
+            created_at: MyDate,
             likes: u32,
             // The `in_reply_to_comment_id` field is optional, so we use `Option<u32>`.
             in_reply_to_comment_id: Option<u32>,
