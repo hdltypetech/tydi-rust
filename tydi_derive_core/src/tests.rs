@@ -30,6 +30,7 @@ fn first() {
 #[test]
 fn comment() {
     let input = quote! {
+        #[packed_size(169)]
         struct Comment {
             comment_id: u32,
             author: Author,
@@ -50,6 +51,7 @@ fn comment() {
 #[test]
 fn author() {
     let input = quote! {
+        #[packed_size(8)]
         struct Author {
             user_id: u32,
             username: String,

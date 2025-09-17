@@ -18,6 +18,17 @@ pub fn tydi_derive_impl(input: TokenStream) -> TokenStream {
 
     let struct_name = &input.ident; // e.g., User
 
+    // Search for #[packed_size(N)]
+    let mut packed_size: Option<usize> = None;
+    for attr in &input.attrs {
+        if attr.path().is_ident("packed_size") {
+            let lit: syn::LitInt = attr.parse_args().unwrap();
+            packed_size = Some(lit.base10_parse::<usize>().unwrap());
+        }
+    }
+
+    let size = packed_size.expect("missing #[packed_size(N)] on struct");
+
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
     // Collect fields for the non-Vec struct and Vec-only struct
