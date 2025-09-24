@@ -30,7 +30,8 @@ impl<T> TydiPacket<T> {
             let n_bytes = T::SIZE.div_ceil(8);
             TydiBinary { data: vec![0u8; n_bytes], len: T::SIZE }
         };
-        strobe.concatenate(&last_bin).concatenate(&data_bin)
+        let return_val = strobe.concatenate(&last_bin).concatenate(&data_bin);
+        return_val
     }
 
     pub fn from_binary(val: TydiBinary, dim: usize) -> Self where T: FromTydiBinary {
