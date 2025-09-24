@@ -330,7 +330,7 @@ impl<T> FromTydiBinary for Option<T> where T: FromTydiBinary {
     }
 }
 
-fn bool_vec_to_tydi_binary(value: Vec<bool>) -> TydiBinary {
+pub fn bool_vec_to_tydi_binary(value: Vec<bool>) -> TydiBinary {
     let bit_count = value.len();
     let byte_count = bit_count.div_ceil(8);
 

@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 use bytemuck::{bytes_of, cast, cast_slice, from_bytes_mut, NoUninit, Pod};
-use crate::binary::{FromTydiBinary, ToTydiBinary, TydiBinary};
+use crate::binary::{bool_vec_to_tydi_binary, FromTydiBinary, ToTydiBinary, TydiBinary};
 
 pub mod drilling;
 pub mod binary;
@@ -20,7 +20,7 @@ pub struct TydiPacket<T> {
 impl<T> TydiPacket<T> {
     pub fn to_binary(self) -> TydiBinary where T: ToTydiBinary {
         let strobe: TydiBinary = self.data.is_some().into();
-        let last_bin: TydiBinary = self.last.into();
+        let last_bin: TydiBinary = bool_vec_to_tydi_binary(self.last);
         // el.data.and_then(|data| { Some(data.into()) }).or(Some(TydiBinary { data: vec![], len: 0 }))
         let data_bin = if let Some(data) = self.data {
             let binary: TydiBinary = data.into();
