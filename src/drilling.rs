@@ -40,30 +40,29 @@ impl<T: Clone> TydiStream<T> {
         // Map through existing items in our vector of packets
         let v = self.0.iter().flat_map(|el| {
             let el = (*el).clone();
-            let new_lasts = [el.last.clone(), vec![false]].concat();
             // If the packet contains data
             let new_vec: ResultType<B> = if let Some(old_data) = el.data {
                 // Apply drilling function create packets from elements of resulting iterable
                 let mut res: ResultType<B> = f(old_data).into_iter().map(|n_el| {
-                    TydiPacket { data: Some(n_el), last: new_lasts.clone() }
+                    // Every element that does not close the lowest dimension does also not close the upper dimensions.
+                    // The last element does, of course, this is corrected below.
+                    TydiPacket { data: Some(n_el), last: vec![false; d+1] }
                 }).collect();
 
+                let new_lasts = [el.last, vec![true]].concat();
                 // It can be that this dimension is empty, in that case return a single empty packet
                 if res.is_empty() {
-                    vec![TydiPacket { data: None, last: [el.last.clone(), vec![true]].concat() }]
+                    vec![TydiPacket { data: None, last: new_lasts }]
                 } else {
                     // Patch last element
-                    /*if let Some(el) = res.last_mut() {
-                        el.last[d] = true
-                    }*/
                     let res_len = res.len();
-                    res[res_len - 1].last[d] = true;
+                    res[res_len - 1].last = new_lasts;
                     res
                 }
             } else {
                 vec![TydiPacket {
                     data: None,
-                    last: new_lasts,
+                    last: [el.last, vec![false]].concat(),
                 }]
             };
             new_vec
