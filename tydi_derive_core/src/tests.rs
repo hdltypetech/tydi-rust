@@ -30,11 +30,12 @@ fn first() {
 #[test]
 fn comment() {
     let input = quote! {
+        #[packed_size(169)]
         struct Comment {
             comment_id: u32,
             author: Author,
             content: String,
-            created_at: String,
+            created_at: MyDate,
             likes: u32,
             // The `in_reply_to_comment_id` field is optional, so we use `Option<u32>`.
             in_reply_to_comment_id: Option<u32>,
@@ -50,6 +51,7 @@ fn comment() {
 #[test]
 fn author() {
     let input = quote! {
+        #[packed_size(8)]
         struct Author {
             user_id: u32,
             username: String,

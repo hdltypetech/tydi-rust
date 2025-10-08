@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 use bytemuck::{bytes_of, cast, cast_slice, from_bytes_mut, NoUninit, Pod};
-use crate::binary::{FromTydiBinary, TydiBinary};
+use crate::binary::{bool_vec_to_tydi_binary, FromTydiBinary, ToTydiBinary, TydiBinary};
 
 pub mod drilling;
 pub mod binary;
@@ -18,19 +18,20 @@ pub struct TydiPacket<T> {
 }
 
 impl<T> TydiPacket<T> {
-    pub fn to_binary(self, size: usize) -> TydiBinary where T: Into<TydiBinary> {
+    pub fn to_binary(self) -> TydiBinary where T: ToTydiBinary {
         let strobe: TydiBinary = self.data.is_some().into();
-        let last_bin: TydiBinary = self.last.into();
+        let last_bin: TydiBinary = bool_vec_to_tydi_binary(self.last);
         // el.data.and_then(|data| { Some(data.into()) }).or(Some(TydiBinary { data: vec![], len: 0 }))
         let data_bin = if let Some(data) = self.data {
-            let binary = data.into();
-            assert_eq!(binary.len, size, "resulting binary not of expected size");
+            let binary: TydiBinary = data.into();
+            assert_eq!(binary.len, T::SIZE, "resulting binary not of expected size");
             binary
         } else {
-            let n_bytes = size.div_ceil(8);
-            TydiBinary { data: vec![0u8; n_bytes], len: size }
+            let n_bytes = T::SIZE.div_ceil(8);
+            TydiBinary { data: vec![0u8; n_bytes], len: T::SIZE }
         };
-        strobe.concatenate(&last_bin).concatenate(&data_bin)
+        let return_val = strobe.concatenate(&last_bin).concatenate(&data_bin);
+        return_val
     }
 
     pub fn from_binary(val: TydiBinary, dim: usize) -> Self where T: FromTydiBinary {
@@ -271,7 +272,7 @@ mod tests {
             data: Some(num),
             last: vec![true],
         };
-        let bin = packet.to_binary(64);
+        let bin = packet.to_binary();
         let reconstructed: TydiPacket<u64> = TydiPacket::from_binary(bin, 1);
         assert_eq!(reconstructed.data, Some(num));
     }

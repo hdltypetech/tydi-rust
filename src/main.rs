@@ -3,7 +3,8 @@ use std::fs;
 use std::error::Error;
 use chrono::{DateTime, Utc};
 use rust_tydi_packages::{binary::TydiBinary, TydiPacket, drilling::*, TydiStream, TydiBinaryStream};
-use rust_tydi_packages::binary::FromTydiBinary;
+use rust_tydi_packages::binary::{FromTydiBinary, ToTydiBinary};
+use tydi_derive_macro::Tydi;
 // Define the data structures based on the JSON schema.
 // We use `serde::Deserialize` to automatically derive the deserialization logic.
 
@@ -13,6 +14,8 @@ struct MyDate(DateTime<Utc>);
 // Represents a single comment.
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "camelCase")]
+#[derive(Tydi)]
+#[packed_size(193)]
 struct Comment {
     comment_id: u32,
     author: Author,
@@ -26,6 +29,8 @@ struct Comment {
 // Represents the author of a post or comment.
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "camelCase")]
+#[derive(Tydi)]
+#[packed_size(32)]
 struct Author {
     user_id: u32,
     username: String,
@@ -60,22 +65,6 @@ impl FromTydiBinary for MyDate {
         let dt = DateTime::from_timestamp_millis(int_value).unwrap();
         (MyDate(dt), res)
     }
-}
-
-// The root data structure, which is a vector of posts.
-#[derive(Debug, Deserialize)]
-struct Posts(Vec<Post>);
-
-struct MyTypeStreams {
-    subStream: Vec<TydiBinary>,
-    subStream2: Vec<TydiBinary>
-}
-
-struct MyTypeProcessed {
-    someProp: TydiBinary, // from bool
-    someOtherProp: TydiBinary, // from u8
-
-    streams: MyTypeStreams,
 }
 
 struct PhysicalStreamsTyped {
@@ -141,14 +130,14 @@ struct PhysicalStreamsBinary {
 impl PhysicalStreamsBinary {
     pub fn new(posts: PhysicalStreamsTyped) -> PhysicalStreamsBinary {
         Self {
-            posts: posts.posts.finish(256),
-            post_titles: posts.post_titles.finish(8),
-            post_contents: posts.post_contents.finish(8),
-            post_author_username: posts.post_author_username.finish(8),
-            post_tags: posts.post_tags.finish(8),
-            post_comments: posts.post_comments.finish(160),
-            post_comment_author_username: posts.post_comment_author_username.finish(8),
-            post_comment_content: posts.post_comment_content.finish(8),
+            posts: posts.posts.finish(),
+            post_titles: posts.post_titles.finish(),
+            post_contents: posts.post_contents.finish(),
+            post_author_username: posts.post_author_username.finish(),
+            post_tags: posts.post_tags.finish(),
+            post_comments: posts.post_comments.finish(),
+            post_comment_author_username: posts.post_comment_author_username.finish(),
+            post_comment_content: posts.post_comment_content.finish(),
         }
     }
 
@@ -198,8 +187,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("posts binary: {:?}", binary_streams.posts);
     let objs = binary_streams.reverse();
     let reconstructed_posts = objs.reverse();
-    // comments_recreated.inject(|e| e.author.username, comment_author_recreated);
-    // posts_recreated[0].data.unwrap().comments.push()
     let my_var = 5;
 
     let json_recreated = serde_json::to_string(&reconstructed_posts).expect("Should have been able to serialize the reconstructed posts");
@@ -208,32 +195,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct PostNonVecs {
-    pub post_id: u32,
-    pub author: AuthorNonVecs,
-    pub created_at: MyDate,
-    pub updated_at: MyDate,
-    pub likes: u32,
-    pub shares: u32,
-}
+impl ToTydiBinary for Post {
+    const SIZE: usize = 256;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct PostVecs {
-    pub title: String,
-    pub content: String,
-    pub tags: Vec<String>,
-    pub comments: Vec<Comment>,
-}
-
-impl From<Post> for TydiBinary {
-    fn from(value: Post) -> Self {
-        let post_id: TydiBinary = value.post_id.into();
-        let author: TydiBinary = value.author.into();
-        let created_at: TydiBinary = value.created_at.into();
-        let updated_at: TydiBinary = value.updated_at.into();
-        let likes: TydiBinary = value.likes.into();
-        let shares: TydiBinary = value.shares.into();
+    fn to_tydi_binary(self) -> TydiBinary {
+        let post_id: TydiBinary = self.post_id.into();
+        let author: TydiBinary = self.author.into();
+        let created_at: TydiBinary = self.created_at.into();
+        let updated_at: TydiBinary = self.updated_at.into();
+        let likes: TydiBinary = self.likes.into();
+        let shares: TydiBinary = self.shares.into();
         post_id.concatenate(&author).concatenate(&created_at).concatenate(&updated_at).concatenate(&likes).concatenate(&shares)
     }
 }
@@ -267,89 +238,6 @@ impl FromTydiBinary for Post {
         (value.into(), TydiBinary::empty())
     }
 }
-
-impl From<Author> for TydiBinary {
-    fn from(value: Author) -> Self {
-        let author_id: TydiBinary = value.user_id.into();
-        author_id
-    }
-}
-
-impl FromTydiBinary for Author {
-    fn from_tydi_binary(value: TydiBinary) -> (Self, TydiBinary) {
-        let (user_id, res) = u32::from_tydi_binary(value);
-        let author = Self {
-            user_id,
-            username: "".to_string(),
-        };
-        (author, res)
-    }
-}
-
-impl FromTydiBinary for Comment {
-    fn from_tydi_binary(value: TydiBinary) -> (Self, TydiBinary) {
-        let (comment_id, res) = u32::from_tydi_binary(value);
-        let (author, res) = Author::from_tydi_binary(res);
-        let (created_at, res) = MyDate::from_tydi_binary(res);
-        let (likes, res) = u32::from_tydi_binary(res);
-        let author = Self {
-            comment_id,
-            author,
-            content: "".to_string(),
-            created_at,
-            likes,
-            in_reply_to_comment_id: None,
-        };
-        (author, res)
-    }
-}
-
-impl From<Comment> for TydiBinary {
-    fn from(value: Comment) -> Self {
-        let comment_id: TydiBinary = value.comment_id.into();
-        let author: TydiBinary = value.author.into();
-        let created_at: TydiBinary = value.created_at.into();
-        let likes: TydiBinary = value.likes.into();
-        comment_id.concatenate(&author).concatenate(&created_at).concatenate(&likes)
-    }
-}
-
-impl From<Post> for PostNonVecs { fn from(value: Post) -> Self { Self { post_id: value.post_id, author: value.author.into(), created_at: value.created_at, updated_at: value.updated_at, likes: value.likes, shares: value.shares } } }
-
-impl From<Post> for PostVecs { fn from(value: Post) -> Self { Self { title: value.title, content: value.content, tags: value.tags, comments: value.comments } } }
-
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct AuthorNonVecs {
-    pub user_id: u32,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct AuthorVecs {
-    pub username: String,
-}
-
-impl From<Author> for AuthorNonVecs { fn from(value: Author) -> Self { Self { user_id: value.user_id } } }
-
-impl From<Author> for AuthorVecs { fn from(value: Author) -> Self { Self { username: value.username } } }
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct CommentNonVecs {
-    pub comment_id: u32,
-    pub author: Author,
-    pub created_at: MyDate,
-    pub likes: u32,
-    pub in_reply_to_comment_id: Option<u32>,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct CommentVecs {
-    pub content: String,
-}
-
-impl From<Comment> for CommentNonVecs { fn from(value: Comment) -> Self { Self { comment_id: value.comment_id, author: value.author, created_at: value.created_at, likes: value.likes, in_reply_to_comment_id: value.in_reply_to_comment_id } } }
-
-impl From<Comment> for CommentVecs { fn from(value: Comment) -> Self { Self { content: value.content } } }
 
 #[cfg(test)]
 mod tests {
