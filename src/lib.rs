@@ -4,6 +4,7 @@ use crate::binary::{bool_vec_to_tydi_binary, FromTydiBinary, ToTydiBinary, TydiB
 
 pub mod drilling;
 pub mod binary;
+pub mod transfer;
 
 #[derive(Debug)]
 pub struct TydiStream<T>(pub Vec<TydiPacket<T>>);
@@ -20,7 +21,11 @@ pub struct TydiPacket<T> {
 impl<T> TydiPacket<T> {
     pub fn to_binary(self) -> TydiBinary where T: ToTydiBinary {
         let strobe: TydiBinary = self.data.is_some().into();
-        let last_bin: TydiBinary = bool_vec_to_tydi_binary(self.last);
+        // The Tydi specification puts the innermost dimension in last bit 0, while `last` lists
+        // dimensions outermost first (`drill` appends each deeper dimension), so reverse it.
+        let mut last = self.last;
+        last.reverse();
+        let last_bin: TydiBinary = bool_vec_to_tydi_binary(last);
         // el.data.and_then(|data| { Some(data.into()) }).or(Some(TydiBinary { data: vec![], len: 0 }))
         let data_bin = if let Some(data) = self.data {
             let binary: TydiBinary = data.into();
@@ -37,7 +42,9 @@ impl<T> TydiPacket<T> {
     pub fn from_binary(val: TydiBinary, dim: usize) -> Self where T: FromTydiBinary {
         let (strobe, res) = bool::from_tydi_binary(val);
         let (last, res) = res.split(dim);
-        let last: Vec<bool> = last.into();
+        // Binary: innermost dimension first (Tydi specification); `last`: outermost first.
+        let mut last: Vec<bool> = last.into();
+        last.reverse();
 
         let data: Option<T> = if strobe {
             let (item, _) = T::from_tydi_binary(res);
